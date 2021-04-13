@@ -1,13 +1,152 @@
 version: 2.1
-
 jobs:
-  ci-build:
-    docker:
-      - image: circleci/node:lts
-    steps:
+  checkout:
+    machine:
+      image: ubuntu-2004:202010-01 
+    steps: 
       - checkout
 
+  install:
+    machine:
+      image: ubuntu-2004:202010-01 
+    steps: 
+      - checkout
+      - run: npm install --prefix src/
+      - run: docker-compose up -d
+      - save_cache:
+          paths:
+            - src/node_modules
+          key: node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}
+  
+  install_bad:
+    machine:
+      image: ubuntu-2004:202010-01 
+    steps: 
+      - run: npm install 
+      - run: docker-compose up -d
+      - save_cache:
+          paths:
+            - src/node_modules
+          key: node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}
+
+  lint_check:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}
+      - run: docker-compose up -d
+      - run: npm run test-lint --prefix src/
+
+  unit_test:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}      
+      - run: docker-compose up -d
+      - run: npm run test-unit --prefix src/
+  
+  integration_test:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}      
+      - run: docker-compose up -d
+      - run: npm run test-integration --prefix src/
+  
+  e2e_test:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}      
+      - run: docker-compose up -d      
+      - run: chmod +x scripts/e2e-ci.sh
+      - run: ./scripts/e2e-ci.sh
+
+  pack:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}      
+      - run: npm pack src/
+
+  
+
+
 workflows:
-  build-and-packge:
+  version: 2
+  check_and_pack:
     jobs:
-      - ci-build
+      - checkout
+      - install:
+          requires:
+            - checkout
+      - lint_check:
+          requires:
+            - install
+      - unit_test:
+          requires:
+            - install
+      - integration_test:
+          requires:
+            - install
+      - e2e_test:
+          requires:
+              - lint_check
+              - unit_test
+              - integration_test
+      - pack:
+          requires:
+              - lint_check
+              - unit_test
+              - integration_test
+              - e2e_test
+          filters:
+            branches:
+              only: main
+
+  bad_workflow:
+    jobs:
+      - checkout
+      - install_bad:
+          requires:
+            - checkout
+      - lint_check:
+          requires:
+            - install_bad
+      - unit_test:
+          requires:
+            - install_bad
+      - integration_test:
+          requires:
+            - install_bad
+      - e2e_test:
+          requires:
+              - lint_check
+              - unit_test
+              - integration_test
+      - pack:
+          requires:
+              - lint_check
+              - unit_test
+              - integration_test
+              - e2e_test
+          filters:
+            branches:
+              only: master
+
+
