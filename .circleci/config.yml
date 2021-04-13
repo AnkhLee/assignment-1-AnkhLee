@@ -22,7 +22,6 @@ jobs:
     machine:
       image: ubuntu-2004:202010-01 
     steps: 
-      - checkout
       - run: npm install 
       - run: docker-compose up -d
       - save_cache:
