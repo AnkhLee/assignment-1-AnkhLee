@@ -17,6 +17,18 @@ jobs:
           paths:
             - src/node_modules
           key: node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}
+  
+  install_bad:
+    machine:
+      image: ubuntu-2004:202010-01 
+    steps: 
+      - checkout
+      - run: npm install 
+      - run: docker-compose up -d
+      - save_cache:
+          paths:
+            - src/node_modules
+          key: node-v1-{{ .Branch }}-{{ checksum "src/package-lock.json" }}
 
   lint_check:
     machine:
@@ -106,35 +118,36 @@ workflows:
               - e2e_test
           filters:
             branches:
-              only: master
+              only: main
 
-  # bad_workflow:
-  #   jobs:
-  #     - install:
-  #         requires:
-  #           - checkout
-  #     - lint_check:
-  #         requires:
-  #           - install
-  #     - unit_test:
-  #         requires:
-  #           - install
-  #     - integration_test:
-  #         requires:
-  #           - install
-  #     - e2e_test:
-  #         requires:
-  #             - lint_check
-  #             - unit_test
-  #             - integration_test
-  #     - pack:
-  #         requires:
-  #             - lint_check
-  #             - unit_test
-  #             - integration_test
-  #             - e2e_test
-  #         filters:
-  #           branches:
-  #             only: master
+  bad_workflow:
+    jobs:
+      - checkout
+      - install_bad:
+          requires:
+            - checkout
+      - lint_check:
+          requires:
+            - install_bad
+      - unit_test:
+          requires:
+            - install_bad
+      - integration_test:
+          requires:
+            - install_bad
+      - e2e_test:
+          requires:
+              - lint_check
+              - unit_test
+              - integration_test
+      - pack:
+          requires:
+              - lint_check
+              - unit_test
+              - integration_test
+              - e2e_test
+          filters:
+            branches:
+              only: master
 
 
