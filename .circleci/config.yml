@@ -117,7 +117,7 @@ workflows:
               - e2e_test
           filters:
             branches:
-              only: main
+              only: main,master
 
   bad_workflow:
     jobs:
